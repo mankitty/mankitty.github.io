@@ -1,0 +1,593 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="utf-8" />
+    
+  <meta name="description" content="脑子真的不好使，总是忘记太多的东西，哪怕记得再熟也不放心，总是怕需要的时候突然忘记了，必须记下来才能安心." />
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+  <title>
+    nginx+fastcgi搭建web服务器并支持https |  personal notes by mankitty
+  </title>
+  <meta name="generator" content="hexo-theme-yilia-plus">
+  
+  <link rel="shortcut icon" href="/favicon.ico" />
+  
+  
+<link rel="stylesheet" href="/css/style.css">
+
+  
+<script src="/js/pace.min.js"></script>
+
+
+  
+
+  
+
+</head>
+
+</html>
+
+<body>
+  <div id="app">
+    <main class="content">
+      <section class="outer">
+  <article id="post-Nginx/nginx-fastcgi搭建web服务器并支持https" class="article article-type-post" itemscope
+  itemprop="blogPost" data-scroll-reveal>
+
+  <div class="article-inner">
+    
+    <header class="article-header">
+       
+<h1 class="article-title sea-center" style="border-left:0" itemprop="name">
+  nginx+fastcgi搭建web服务器并支持https
+</h1>
+  
+
+    </header>
+    
+
+    
+    <div class="article-meta">
+      <a href="/2018/06/21/Nginx/nginx-fastcgi%E6%90%AD%E5%BB%BAweb%E6%9C%8D%E5%8A%A1%E5%99%A8%E5%B9%B6%E6%94%AF%E6%8C%81https/" class="article-date">
+  <time datetime="2018-06-21T02:37:22.000Z" itemprop="datePublished">2018-06-21</time>
+</a>
+      
+  <div class="article-category">
+    <a class="article-category-link" href="/categories/NGINX%E9%9A%8F%E7%AC%94/">NGINX随笔</a>
+  </div>
+
+      
+      
+<div class="word_count">
+    <span class="post-time">
+        <span class="post-meta-item-icon">
+            <i class="ri-quill-pen-line"></i>
+            <span class="post-meta-item-text"> 字数统计:</span>
+            <span class="post-count">1.3k字</span>
+        </span>
+    </span>
+
+    <span class="post-time">
+        &nbsp; | &nbsp;
+        <span class="post-meta-item-icon">
+            <i class="ri-book-open-line"></i>
+            <span class="post-meta-item-text"> 阅读时长≈</span>
+            <span class="post-count">6分钟</span>
+        </span>
+    </span>
+</div>
+
+      
+    </div>
+    
+
+    
+    
+    <div class="tocbot"></div>
+
+
+
+
+
+    
+
+    
+    <div class="article-entry" itemprop="articleBody">
+      
+
+
+      
+
+      
+      <h2 id="描述"><a href="#描述" class="headerlink" title="描述"></a>描述</h2><p>CGI全称是“公共网关接口”(Common Gateway Interface)，FastCGI与CGI同样都具有语言无关性，可以使用各种语言进行编写。</p>
+<h2 id="工作方式"><a href="#工作方式" class="headerlink" title="工作方式"></a>工作方式</h2><h3 id="CGI"><a href="#CGI" class="headerlink" title="CGI"></a>CGI</h3><p>每当客户请求CGI的时候，WEB服务器就请求操作系统生成一个新的CGI解释器进程(如php-cgi.exe)，CGI 的一个进程则处理完一个请求后退出，下一个请求来时再创建新进程。</p>
+<h3 id="FastCGI"><a href="#FastCGI" class="headerlink" title="FastCGI"></a>FastCGI</h3><p>[1]. Web Server启动时载入FastCGI进程管理器。<br>[2]. FastCGI进程管理器自身初始化，启动多个CGI解释器进程(可见多个php-cgi)并等待来自Web Server的连接。<br>[3]. 当客户端请求到达Web Server时，FastCGI进程管理器选择并连接到一个CGI解释器。 Web server将CGI环境变量和标准输入发送到FastCGI子进程。<br>[4]. FastCGI子进程完成处理后将标准输出和错误信息从同一连接返回Web Server。当FastCGI子进程关闭连接时， 请求便告处理完成。FastCGI子进程接着等待并处理来自FastCGI进程管理器(运行在Web Server中)的下一个连接。</p>
+<h2 id="遇到的问题"><a href="#遇到的问题" class="headerlink" title="遇到的问题"></a>遇到的问题</h2><h3 id="spawn-fcgi-child-exited-with-127"><a href="#spawn-fcgi-child-exited-with-127" class="headerlink" title="spawn-fcgi: child exited with: 127"></a>spawn-fcgi: child exited with: 127</h3><p>在使用spawn-fcgi绑定的时候，绑定命令如下：spawn-fcgi -a 127.0.0.1 -p 9001 -f /appfs/web/snmpManager.cgi，遇到child exited with: 127问题，试过各种方法，最终看到一个帖子上说，可能CGI程序有问题，我就单独的执行的了一下二进制，结果发现如下问题，<strong>./snmpManager.cgi: error while loading shared libraries: libfcgi.so.0: cannot open shared object file: No such file or directory</strong><br>解决方案：将libfcgi.so.0连接到可以让你所有需要的进程，例如，fcgi以及CGI程序都可以找到的地方</p>
+<h3 id="端口问题"><a href="#端口问题" class="headerlink" title="端口问题"></a>端口问题</h3><p>原本的端口设置的为87，导致页面显示一直有问题，最后通过开发者工具查看到显示为端口不安全，更改了端口显示才正确</p>
+<h2 id="spawn-fcgi绑定命令"><a href="#spawn-fcgi绑定命令" class="headerlink" title="spawn-fcgi绑定命令"></a>spawn-fcgi绑定命令</h2><p>spawn-fcgi -a 127.0.0.1 -p 9001 -f /appfs/web/snmpManager.cgi</p>
+<h2 id="相关文件下载地址"><a href="#相关文件下载地址" class="headerlink" title="相关文件下载地址"></a>相关文件下载地址</h2><p><a href="https://pan.baidu.com/s/1xCCj63WYqcGOHWBZmuHGrw" target="_blank" rel="noopener">https://pan.baidu.com/s/1xCCj63WYqcGOHWBZmuHGrw</a></p>
+<h2 id="nginx-编译配置如下"><a href="#nginx-编译配置如下" class="headerlink" title="nginx 编译配置如下"></a>nginx 编译配置如下</h2><p>nginx version: nginx/1.8.1<br>built with OpenSSL 1.0.1e-fips 11 Feb 2013<br>TLS SNI support enabled<br>configure arguments: –prefix=/usr <br>–sbin-path=/usr/sbin/nginx <br>–conf-path=/etc/nginx/nginx.conf <br>–error-log-path=/var/log/nginx/error.log <br>–http-log-path=/var/log/nginx/access.log <br>–http-client-body-temp-path=/etc/nginx/client_body_temp  <br>–http-proxy-temp-path=/etc/nginx/proxy_temp <br>–http-fastcgi-temp-path=/etc/nginx/fastcgi_temp <br>–http-uwsgi-temp-path=/etc/nginx/uwscgi_temp <br>–http-scgi-temp-path=/etc/nginx/scgi_temp <br>–user=nobody –group=nobody –with-http_sub_module –with-http_stub_status_module <br>–with-http_gunzip_module –with-http_ssl_module <br>–add-module=nginx/nginx.auth-1.8.1/src/self/ngx_devel_kit <br>–add-module=nginx/nginx.auth-1.8.1/src/self/set-misc-nginx-module <br>–with-pcre=nginx.auth/pcre-8.36</p>
+<h2 id="nginx-配置文件如下"><a href="#nginx-配置文件如下" class="headerlink" title="nginx 配置文件如下"></a>nginx 配置文件如下</h2><figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br></pre></td><td class="code"><pre><span class="line">user root root;</span><br><span class="line">worker_processes auto;</span><br><span class="line"></span><br><span class="line">events &#123;</span><br><span class="line">    worker_connections  1024;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line">http &#123;</span><br><span class="line">    include mime.types;</span><br><span class="line">    keepalive_timeout 65;</span><br><span class="line">    sendfile on;</span><br><span class="line">    gzip  on;</span><br><span class="line"></span><br><span class="line">    server &#123;</span><br><span class="line">        listen 24796;</span><br><span class="line">        listen 443 default ssl;</span><br><span class="line">        server_name  localhost;</span><br><span class="line"></span><br><span class="line">        ssl on;</span><br><span class="line">        ssl_certificate      &#x2F;appfs&#x2F;etc&#x2F;nginx.auth&#x2F;ssl&#x2F;server.crt;</span><br><span class="line">        ssl_certificate_key  &#x2F;appfs&#x2F;etc&#x2F;nginx.auth&#x2F;ssl&#x2F;server.key;</span><br><span class="line">        ssl_session_timeout  5m;</span><br><span class="line">        ssl_protocols  SSLv2 SSLv3 TLSv1;</span><br><span class="line">        ssl_ciphers  HIGH:!aNULL:!MD5;</span><br><span class="line">        ssl_prefer_server_ciphers on;</span><br><span class="line"></span><br><span class="line">		keepalive_timeout 65;</span><br><span class="line"></span><br><span class="line">        fastcgi_connect_timeout 300;</span><br><span class="line">        fastcgi_send_timeout 300;</span><br><span class="line">        fastcgi_read_timeout 300;</span><br><span class="line">        fastcgi_buffer_size 64k;</span><br><span class="line">        fastcgi_buffers 4 64k;</span><br><span class="line">        fastcgi_busy_buffers_size 128k;</span><br><span class="line">        fastcgi_temp_file_write_size 128k;</span><br><span class="line"></span><br><span class="line">        # CGI以及html所在的目录</span><br><span class="line">        root &#x2F;appfs&#x2F;web;</span><br><span class="line"></span><br><span class="line">        location &#x2F; &#123;</span><br><span class="line">            index index.php index.html index.htm;</span><br><span class="line">        &#125;</span><br><span class="line"></span><br><span class="line">        location ~ \.cgi$ &#123;</span><br><span class="line">            include        fastcgi_params;</span><br><span class="line">            fastcgi_pass   127.0.0.1:9001;</span><br><span class="line">            #fastcgi_pass  unix:&#x2F;var&#x2F;run&#x2F;php-fpm&#x2F;php-fpm.sock;</span><br><span class="line">            #fastcgi_pass  unix:&#x2F;tmp&#x2F;php-cgi.sock;</span><br><span class="line">            #try_files $uri &#x2F;index.php &#x3D;404;</span><br><span class="line">            fastcgi_split_path_info ^(.+\.cgi)(&#x2F;.+)$;</span><br><span class="line">            fastcgi_index  snmpManager.cgi;</span><br><span class="line">            fastcgi_param  SCRIPT_FILENAME  $document_root$fastcgi_script_name;</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h2 id="HTTPS加密连接"><a href="#HTTPS加密连接" class="headerlink" title="HTTPS加密连接"></a>HTTPS加密连接</h2><p>OpenSSL 1.0.0生成p12、jks、crt等格式证书的命令个过程<br>参考文章 <a href="https://www.cnblogs.com/bluestorm/archive/2013/06/26/3155945.html" target="_blank" rel="noopener">OpenSSL 1.0.0生成p12、jks、crt等格式证书的命令个过程(转)</a></p>
+<h4 id="创建根证私钥"><a href="#创建根证私钥" class="headerlink" title="创建根证私钥"></a>创建根证私钥</h4><p>openssl genrsa -out root-key.key 1024</p>
+<h4 id="创建根证书请求文件"><a href="#创建根证书请求文件" class="headerlink" title="创建根证书请求文件"></a>创建根证书请求文件</h4><p>openssl req -new -out root-req.csr -key root-key.key -keyform PEM</p>
+<h4 id="自签根证书"><a href="#自签根证书" class="headerlink" title="自签根证书"></a>自签根证书</h4><p>openssl x509 -req -in root-req.csr -out root-cert.cer -signkey root-key.key -CAcreateserial -days 3650</p>
+<h4 id="导出p12格式根证书"><a href="#导出p12格式根证书" class="headerlink" title="导出p12格式根证书"></a>导出p12格式根证书</h4><p>openssl pkcs12 -export -clcerts -in root-cert.cer -inkey root-key.key -out root.p12</p>
+<h4 id="生成root-jks文件"><a href="#生成root-jks文件" class="headerlink" title="生成root.jks文件"></a>生成root.jks文件</h4><p>keytool -import -v -trustcacerts -storepass 123456 -alias root -file root-cert.cer -keystore<br>root.jks</p>
+<p>生成客户端文件</p>
+<h4 id="生成客户端key"><a href="#生成客户端key" class="headerlink" title="生成客户端key"></a>生成客户端key</h4><p>openssl genrsa -out client-key.key 1024</p>
+<h4 id="生成客户端请求文件"><a href="#生成客户端请求文件" class="headerlink" title="生成客户端请求文件"></a>生成客户端请求文件</h4><p>openssl req -new -out client-req.csr -key client-key.key</p>
+<h4 id="生成客户端证书（root证书，rootkey，客户端key，客户端请求文件这4个生成客户端证书）"><a href="#生成客户端证书（root证书，rootkey，客户端key，客户端请求文件这4个生成客户端证书）" class="headerlink" title="生成客户端证书（root证书，rootkey，客户端key，客户端请求文件这4个生成客户端证书）"></a>生成客户端证书（root证书，rootkey，客户端key，客户端请求文件这4个生成客户端证书）</h4><p>openssl x509 -req -in client-req.csr -out client-cert.cer -signkey client-key.key -CA root-cert.cer<br>-CAkey root-key.key -CAcreateserial -days 3650</p>
+<h4 id="生成客户端p12格式根证书"><a href="#生成客户端p12格式根证书" class="headerlink" title="生成客户端p12格式根证书"></a>生成客户端p12格式根证书</h4><p>openssl pkcs12 -export -clcerts -in client-cert.cer -inkey client-key.key -out client.p12</p>
+<h4 id="客户端jks："><a href="#客户端jks：" class="headerlink" title="客户端jks："></a>客户端jks：</h4><p>keytool -import -v -trustcacerts -storepass 123456 -alias client -file client-cert.cer -keystore<br>client.jks</p>
+<p>生成服务端文件</p>
+<h4 id="生成服务端key"><a href="#生成服务端key" class="headerlink" title="生成服务端key"></a>生成服务端key</h4><p>openssl genrsa -out server-key.key 1024</p>
+<h4 id="生成服务端请求文件"><a href="#生成服务端请求文件" class="headerlink" title="生成服务端请求文件"></a>生成服务端请求文件</h4><p>openssl req -new -out server-req.csr -key server-key.key</p>
+<h4 id="生成服务端证书（root证书，rootkey，客户端key，客户端请求文件这4个生成客户端证书）"><a href="#生成服务端证书（root证书，rootkey，客户端key，客户端请求文件这4个生成客户端证书）" class="headerlink" title="生成服务端证书（root证书，rootkey，客户端key，客户端请求文件这4个生成客户端证书）"></a>生成服务端证书（root证书，rootkey，客户端key，客户端请求文件这4个生成客户端证书）</h4><p>openssl x509 -req -in server-req.csr -out server-cert.cer -signkey server-key.key -CA root-cert.cer<br>-CAkey root-key.key -CAcreateserial -days 3650</p>
+<h4 id="生成服务端p12格式根证书"><a href="#生成服务端p12格式根证书" class="headerlink" title="生成服务端p12格式根证书"></a>生成服务端p12格式根证书</h4><p>openssl pkcs12 -export -clcerts -in server-cert.cer -inkey server-key.key -out server.p12</p>
+<h4 id="服务端JKS"><a href="#服务端JKS" class="headerlink" title="服务端JKS"></a>服务端JKS</h4><p>keytool -import -v -trustcacerts -storepass 123456 -alias server -file server-cert.cer -keystore<br>server.jks</p>
+<h4 id="无密码key命令"><a href="#无密码key命令" class="headerlink" title="无密码key命令"></a>无密码key命令</h4><p>openssl rsa -in client-key.key -out client-key.key.unsecure</p>
+
+      
+      <!-- reward -->
+      
+    </div>
+    
+    
+      <!-- copyright -->
+      
+        <div class="declare">
+          <ul class="post-copyright">
+            <li>
+              <i class="ri-copyright-line"></i>
+              <strong>版权声明： </strong s>
+              本博客所有文章除特别声明外，均采用 <a href="https://www.apache.org/licenses/LICENSE-2.0.html" rel="external nofollow"
+                target="_blank">Apache License 2.0</a> 许可协议。转载请注明出处！
+            </li>
+          </ul>
+        </div>
+        
+    <footer class="article-footer">
+      
+          
+<div class="share-btn">
+      <span class="share-sns share-outer">
+        <i class="ri-share-forward-line"></i>
+        分享
+      </span>
+      <div class="share-wrap">
+        <i class="arrow"></i>
+        <div class="share-icons">
+          
+          <a class="weibo share-sns" href="javascript:;" data-type="weibo">
+            <i class="ri-weibo-fill"></i>
+          </a>
+          <a class="weixin share-sns wxFab" href="javascript:;" data-type="weixin">
+            <i class="ri-wechat-fill"></i>
+          </a>
+          <a class="qq share-sns" href="javascript:;" data-type="qq">
+            <i class="ri-qq-fill"></i>
+          </a>
+          <a class="douban share-sns" href="javascript:;" data-type="douban">
+            <i class="ri-douban-line"></i>
+          </a>
+          <!-- <a class="qzone share-sns" href="javascript:;" data-type="qzone">
+            <i class="icon icon-qzone"></i>
+          </a> -->
+          
+          <a class="facebook share-sns" href="javascript:;" data-type="facebook">
+            <i class="ri-facebook-circle-fill"></i>
+          </a>
+          <a class="twitter share-sns" href="javascript:;" data-type="twitter">
+            <i class="ri-twitter-fill"></i>
+          </a>
+          <a class="google share-sns" href="javascript:;" data-type="google">
+            <i class="ri-google-fill"></i>
+          </a>
+        </div>
+      </div>
+</div>
+
+<div class="wx-share-modal">
+    <a class="modal-close" href="javascript:;"><i class="ri-close-circle-line"></i></a>
+    <p>扫一扫，分享到微信</p>
+    <div class="wx-qrcode">
+      <img src="//api.qrserver.com/v1/create-qr-code/?size=150x150&data=http://yoursite.com/2018/06/21/Nginx/nginx-fastcgi%E6%90%AD%E5%BB%BAweb%E6%9C%8D%E5%8A%A1%E5%99%A8%E5%B9%B6%E6%94%AF%E6%8C%81https/" alt="微信分享二维码">
+    </div>
+</div>
+
+<div id="share-mask"></div>
+      
+      
+
+    </footer>
+
+  </div>
+
+  
+  
+  <nav class="article-nav">
+    
+      <a href="/2018/06/22/OpenWrt/OpenWrt%E4%B9%8BXHR%E6%96%B9%E6%B3%95/" class="article-nav-link">
+        <strong class="article-nav-caption">上一篇</strong>
+        <div class="article-nav-title">
+          
+            OpenWrt之XHR方法
+          
+        </div>
+      </a>
+    
+    
+      <a href="/2018/06/20/OpenWrt/OpenWrt-%E4%B9%8Bsetfilehandler%E5%87%BD%E6%95%B0%E8%AF%A6%E8%A7%A3/" class="article-nav-link">
+        <strong class="article-nav-caption">下一篇</strong>
+        <div class="article-nav-title">OpenWrt 之setfilehandler函数详解</div>
+      </a>
+    
+  </nav>
+
+
+  
+
+  
+  
+<!-- valine评论 -->
+<div id="vcomments-box">
+    <div id="vcomments">
+    </div>
+</div>
+<script src="//cdn1.lncld.net/static/js/3.0.4/av-min.js"></script>
+<script src='https://cdn.jsdelivr.net/npm/valine@1.3.10/dist/Valine.min.js'></script>
+<script>
+    new Valine({
+        el: '#vcomments',
+        app_id: '',
+        app_key: '',
+        path: window.location.pathname,
+        notify: 'false',
+        verify: 'false',
+        avatar: 'mp',
+        placeholder: '给我的文章加点评论吧~',
+        recordIP: true
+    });
+    const infoEle = document.querySelector('#vcomments .info');
+    if (infoEle && infoEle.childNodes && infoEle.childNodes.length > 0) {
+        infoEle.childNodes.forEach(function (item) {
+            item.parentNode.removeChild(item);
+        });
+    }
+</script>
+<style>
+    #vcomments-box {
+        padding: 5px 30px;
+    }
+
+    @media screen and (max-width: 800px) {
+        #vcomments-box {
+            padding: 5px 0px;
+        }
+    }
+
+    #vcomments-box #vcomments {
+        background-color: #fff;
+    }
+
+    .v .vlist .vcard .vh {
+        padding-right: 20px;
+    }
+
+    .v .vlist .vcard {
+        padding-left: 10px;
+    }
+</style>
+
+  
+
+  
+  
+  
+
+</article>
+</section>
+      <footer class="footer">
+  <div class="outer">
+    <ul class="list-inline">
+      <li>
+        &copy;
+        2015-2020
+        Mankitty
+      </li>
+      <li>
+        
+          Powered by
+        
+        
+        <a href="https://hexo.io" target="_blank">Hexo</a> Theme <a href="https://github.com/Shen-Yu/hexo-theme-ayer" target="_blank">Ayer</a>
+        
+      </li>
+    </ul>
+    <ul class="list-inline">
+      <li>
+        
+        
+        <span>
+  <i>PV:<span id="busuanzi_value_page_pv"></span></i>
+  <i>UV:<span id="busuanzi_value_site_uv"></span></i>
+</span>
+        
+      </li>
+      <li>
+        <!-- cnzz统计 -->
+        
+        <script type="text/javascript" src='https://s9.cnzz.com/z_stat.php?id=1278069914&amp;web_id=1278069914'></script>
+        
+      </li>
+    </ul>
+  </div>
+</footer>
+    <div class="to_top">
+        <div class="totop" id="totop">
+  <i class="ri-arrow-up-line"></i>
+</div>
+      </div>
+    </main>
+      <aside class="sidebar">
+        <button class="navbar-toggle"></button>
+<nav class="navbar">
+  
+  <div class="logo">
+    <a href="/"><img src="/images/ayer-side.svg" alt="personal notes by mankitty"></a>
+  </div>
+  
+  <ul class="nav nav-main">
+    
+    <li class="nav-item">
+      <a class="nav-item-link" href="/">主页</a>
+    </li>
+    
+    <li class="nav-item">
+      <a class="nav-item-link" href="/archives">归档</a>
+    </li>
+    
+    <li class="nav-item">
+      <a class="nav-item-link" href="/categories">分类</a>
+    </li>
+    
+    <li class="nav-item">
+      <a class="nav-item-link" href="/tags">标签</a>
+    </li>
+    
+    <li class="nav-item">
+      <a class="nav-item-link" href="/travel/">旅行</a>
+    </li>
+    
+    <li class="nav-item">
+      <a class="nav-item-link" href="http://shenyu-vip.lofter.com" target="_blank" rel="noopener">摄影</a>
+    </li>
+    
+    <li class="nav-item">
+      <a class="nav-item-link" href="/about">关于我</a>
+    </li>
+    
+  </ul>
+</nav>
+<nav class="navbar navbar-bottom">
+  <ul class="nav">
+    <li class="nav-item">
+      
+      <a class="nav-item-link nav-item-search"  title="Search">
+        <i class="ri-search-line"></i>
+      </a>
+      
+      
+    </li>
+  </ul>
+</nav>
+<div class="search-form-wrap">
+  <div class="local-search local-search-plugin">
+  <input type="search" id="local-search-input" class="local-search-input" placeholder="Search...">
+  <div id="local-search-result" class="local-search-result"></div>
+</div>
+</div>
+      </aside>
+      <div id="mask"></div>
+
+<!-- #reward -->
+<div id="reward">
+  <span class="close"><i class="ri-close-line"></i></span>
+  <p class="reward-p"><i class="ri-cup-line"></i>请我喝杯咖啡吧~</p>
+  <div class="reward-box">
+    
+    <div class="reward-item">
+      <img class="reward-img" src="/images/alipay.jpg">
+      <span class="reward-type">支付宝</span>
+    </div>
+    
+    
+    <div class="reward-item">
+      <img class="reward-img" src="/images/wechat.jpg">
+      <span class="reward-type">微信</span>
+    </div>
+    
+  </div>
+</div>
+      
+<script src="/js/jquery-2.0.3.min.js"></script>
+
+
+<script src="/js/jquery.justifiedGallery.min.js"></script>
+
+
+<script src="/js/lazyload.min.js"></script>
+
+
+<script src="/js/busuanzi-2.3.pure.min.js"></script>
+
+
+<script src="/js/share.js"></script>
+
+
+
+<script src="/fancybox/jquery.fancybox.min.js"></script>
+
+
+
+
+
+
+
+<script src="/js/tocbot.min.js"></script>
+
+<script>
+  // Tocbot_v4.7.0  http://tscanlin.github.io/tocbot/
+  tocbot.init({
+    tocSelector: '.tocbot',
+    contentSelector: '.article-entry',
+    headingSelector: 'h1, h2, h3, h4, h5, h6',
+    hasInnerContainers: true,
+    scrollSmooth: true,
+    scrollContainer:'main',
+    positionFixedSelector: '.tocbot',
+    positionFixedClass: 'is-position-fixed',
+    fixedSidebarOffset: 'auto',
+    onClick: (e) => {
+      $('.toc-link').removeClass('is-active-link');
+      $(`a[href=${e.target.hash}]`).addClass('is-active-link');
+      $(e.target.hash).scrollIntoView();
+      return false;
+    }
+  });
+</script>
+
+
+<script>
+  var ayerConfig = {
+    mathjax: false
+  }
+</script>
+
+
+<script src="/js/ayer.js"></script>
+
+
+<script src="https://cdn.jsdelivr.net/npm/jquery-modal@0.9.2/jquery.modal.min.js"></script>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/jquery-modal@0.9.2/jquery.modal.min.css">
+
+
+<!-- Root element of PhotoSwipe. Must have class pswp. -->
+<div class="pswp" tabindex="-1" role="dialog" aria-hidden="true">
+
+    <!-- Background of PhotoSwipe. 
+         It's a separate element as animating opacity is faster than rgba(). -->
+    <div class="pswp__bg"></div>
+
+    <!-- Slides wrapper with overflow:hidden. -->
+    <div class="pswp__scroll-wrap">
+
+        <!-- Container that holds slides. 
+            PhotoSwipe keeps only 3 of them in the DOM to save memory.
+            Don't modify these 3 pswp__item elements, data is added later on. -->
+        <div class="pswp__container">
+            <div class="pswp__item"></div>
+            <div class="pswp__item"></div>
+            <div class="pswp__item"></div>
+        </div>
+
+        <!-- Default (PhotoSwipeUI_Default) interface on top of sliding area. Can be changed. -->
+        <div class="pswp__ui pswp__ui--hidden">
+
+            <div class="pswp__top-bar">
+
+                <!--  Controls are self-explanatory. Order can be changed. -->
+
+                <div class="pswp__counter"></div>
+
+                <button class="pswp__button pswp__button--close" title="Close (Esc)"></button>
+
+                <button class="pswp__button pswp__button--share" style="display:none" title="Share"></button>
+
+                <button class="pswp__button pswp__button--fs" title="Toggle fullscreen"></button>
+
+                <button class="pswp__button pswp__button--zoom" title="Zoom in/out"></button>
+
+                <!-- Preloader demo http://codepen.io/dimsemenov/pen/yyBWoR -->
+                <!-- element will get class pswp__preloader--active when preloader is running -->
+                <div class="pswp__preloader">
+                    <div class="pswp__preloader__icn">
+                        <div class="pswp__preloader__cut">
+                            <div class="pswp__preloader__donut"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="pswp__share-modal pswp__share-modal--hidden pswp__single-tap">
+                <div class="pswp__share-tooltip"></div>
+            </div>
+
+            <button class="pswp__button pswp__button--arrow--left" title="Previous (arrow left)">
+            </button>
+
+            <button class="pswp__button pswp__button--arrow--right" title="Next (arrow right)">
+            </button>
+
+            <div class="pswp__caption">
+                <div class="pswp__caption__center"></div>
+            </div>
+
+        </div>
+
+    </div>
+
+</div>
+
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.min.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/default-skin/default-skin.css">
+<script src="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe-ui-default.min.js"></script>
+
+<script>
+    function viewer_init() {
+        let pswpElement = document.querySelectorAll('.pswp')[0];
+        let $imgArr = document.querySelectorAll(('.article-entry img:not(.reward-img)'))
+
+        $imgArr.forEach(($em, i) => {
+            $em.onclick = () => {
+                // slider展开状态
+                // todo: 这样不好，后面改成状态
+                if (document.querySelector('.left-col.show')) return
+                let items = []
+                $imgArr.forEach(($em2, i2) => {
+                    let img = $em2.getAttribute('data-idx', i2)
+                    let src = $em2.getAttribute('data-target') || $em2.getAttribute('src')
+                    let title = $em2.getAttribute('alt')
+                    // 获得原图尺寸
+                    const image = new Image()
+                    image.src = src
+                    items.push({
+                        src: src,
+                        w: image.width || $em2.width,
+                        h: image.height || $em2.height,
+                        title: title
+                    })
+                })
+                var gallery = new PhotoSwipe(pswpElement, PhotoSwipeUI_Default, items, {
+                    index: parseInt(i)
+                });
+                gallery.init()
+            }
+        })
+    }
+    viewer_init()
+</script>
+
+
+
+
+<script type="text/javascript" src="https://js.users.51.la/20544303.js"></script>
+  </div>
+</body>
+
+</html>
